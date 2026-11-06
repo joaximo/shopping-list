@@ -1,10 +1,13 @@
-// Offline support.
-// Online: always fetch the latest files (bypassing the browser's HTTP cache, so
-// the page and its script can never be from different versions).
-// Offline or very slow signal: fall back to the copy saved on the phone.
-const CACHE = 'shopping-list-v2';
-const FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
-const TIMEOUT_MS = 3000;
+// Offline support, and fast start.
+// The app always opens from the copy saved on the phone, without waiting for the
+// network (on a cold start the browser can take many seconds before its first
+// network request goes out). Meanwhile the latest version is downloaded in the
+// background and saved for next time; the page asks whether one arrived, and
+// offers a reload.
+const CACHE = 'shopping-list-v3';
+const FILES = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+
+let newVersion = Promise.resolve(false); // did the latest app launch find a new version?
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -23,20 +26,27 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
-  e.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const network = fetch(e.request, { cache: 'no-cache' }).then((res) => {
-      if (res.ok) cache.put(e.request, res.clone());
-      return res;
-    });
-    e.waitUntil(network.catch(() => {}));
-    const timeout = new Promise((resolve) => setTimeout(resolve, TIMEOUT_MS));
-    try {
-      const res = await Promise.race([network, timeout]);
-      if (res) return res;
-    } catch { /* offline */ }
-    const cached = await cache.match(e.request, { ignoreSearch: true });
-    return cached || network;
-  })());
+  const req = e.request;
+  if (req.method !== 'GET' || !req.url.startsWith(self.location.origin)) return;
+  const nav = req.mode === 'navigate';
+  const key = nav ? new URL('./', self.location).href : req.url; // any page URL is the app itself
+
+  const fresh = fetch(key, { cache: 'no-cache' }).then(async (res) => {
+    if (!res.ok) return { res, changed: false };
+    const old = nav && (await caches.match(key, { ignoreSearch: true }));
+    const changed = !!old && (await res.clone().text()) !== (await old.text());
+    await (await caches.open(CACHE)).put(key, res.clone());
+    return { res, changed };
+  });
+  if (nav) newVersion = fresh.then((f) => f.changed, () => false);
+  e.waitUntil(fresh.catch(() => {}));
+
+  e.respondWith(
+    caches.match(key, { ignoreSearch: true }).then((cached) => cached || fresh.then((f) => f.res))
+  );
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data !== 'check') return;
+  e.waitUntil(newVersion.then((yes) => { if (yes) e.source.postMessage('updated'); }));
 });
