@@ -319,6 +319,16 @@ document.addEventListener('pointercancel', endDrag);
 
 // ---------- Misc ----------
 
+// Tapping outside any popup closes it (same as Cancel/Close).
+document.querySelectorAll('dialog').forEach((dlg) => {
+  dlg.addEventListener('click', (e) => {
+    if (e.target !== dlg) return; // a click inside the content
+    const r = dlg.getBoundingClientRect();
+    const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    if (!inside) dlg.close();
+  });
+});
+
 // Keep several open tabs in sync.
 window.addEventListener('storage', (e) => {
   if (e.key === KEY) { items = load(); render(); }
