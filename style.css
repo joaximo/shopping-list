@@ -40,11 +40,47 @@ body {
   border-bottom: 1px solid var(--line);
   padding-top: env(safe-area-inset-top);
 }
-header { display: flex; align-items: center; padding: 6px 4px 0 16px; }
-h1 { flex: 1; margin: 0; font-size: 1.3rem; }
-#menuBtn {
+header { display: flex; align-items: center; min-height: 54px; padding: 6px 4px 0 16px; }
+#homeView header { padding-bottom: 6px; }
+h1 {
+  flex: 1; margin: 0; font-size: 1.3rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#menuBtn, #backBtn {
+  flex: none;
   border: 0; background: none; color: var(--fg);
   font-size: 1.6rem; width: 48px; height: 48px;
+}
+#backBtn { margin-left: -12px; font-size: 1.5rem; }
+
+/* Home: lists of lists */
+.lists .open {
+  flex: 1;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 64px;
+  padding: 12px 4px 12px 16px;
+  border: 0; background: none; color: inherit;
+  font: inherit; text-align: left;
+}
+.lists .count { color: var(--muted); font-size: .9rem; white-space: nowrap; }
+.more {
+  flex: none; width: 52px;
+  border: 0; background: none; color: var(--muted);
+  font-size: 1.4rem;
+}
+#homeView main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.bottom-bar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+.bottom-bar button {
+  display: block; width: 100%; max-width: 600px; margin: 0 auto;
+  padding: 14px;
+  border: 0; border-radius: 12px;
+  background: var(--accent); color: #fff;
+  font: inherit; font-weight: 600;
 }
 
 #addForm { display: flex; gap: 8px; padding: 6px 12px 12px; }
@@ -162,5 +198,7 @@ dialog .danger { background: none; color: var(--danger); }
 .actions.column { flex-direction: column; }
 dialog .note { margin: 0; font-size: .95rem; color: var(--muted); }
 .spacer { flex: 1; }
-#menuDialog button { display: block; width: 100%; margin-bottom: 8px; text-align: left; }
+#menuDialog button, #listMenuDialog button { display: block; width: 100%; margin-bottom: 8px; text-align: left; }
 #menuDialog button:last-child { margin-bottom: 0; text-align: center; }
+#listMenuDialog h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#listMenuDialog .danger { background: var(--line); margin-bottom: 0; }

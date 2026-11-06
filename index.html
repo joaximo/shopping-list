@@ -4,30 +4,70 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#2e7d32">
-  <title>Shopping List</title>
+  <title>Shopping Lists</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="top">
-    <header>
-      <h1>Shopping List</h1>
-      <button id="menuBtn" aria-label="Menu">⋮</button>
-    </header>
-    <form id="addForm" autocomplete="off">
-      <input id="nameInput" placeholder="Item" enterkeyhint="done" aria-label="Item">
-      <input id="qtyInput" placeholder="Qty" enterkeyhint="done" aria-label="Quantity">
-      <button type="submit" aria-label="Add">+</button>
-    </form>
-  </div>
+  <!-- Home: all lists -->
+  <section id="homeView">
+    <div class="top">
+      <header>
+        <h1>Shopping Lists</h1>
+      </header>
+    </div>
+    <main>
+      <ul id="listsList" class="list lists"></ul>
+      <p id="noLists" class="hint">No lists yet.</p>
+    </main>
+    <div class="bottom-bar">
+      <button id="newListBtn">+ New list</button>
+    </div>
+  </section>
 
-  <main>
-    <ul id="todoList" class="list"></ul>
-    <p id="emptyMsg" class="hint"></p>
-    <h2 id="doneHeader">Done · <span id="doneCount">0</span></h2>
-    <ul id="doneList" class="list done"></ul>
-  </main>
+  <!-- One list -->
+  <section id="listView" hidden>
+    <div class="top">
+      <header>
+        <button id="backBtn" aria-label="Back">←</button>
+        <h1 id="listTitle"></h1>
+        <button id="menuBtn" aria-label="Menu">⋮</button>
+      </header>
+      <form id="addForm" autocomplete="off">
+        <input id="nameInput" placeholder="Item" enterkeyhint="done" aria-label="Item">
+        <input id="qtyInput" placeholder="Qty" enterkeyhint="done" aria-label="Quantity">
+        <button type="submit" aria-label="Add">+</button>
+      </form>
+    </div>
+    <main id="listMain">
+      <ul id="todoList" class="list"></ul>
+      <p id="emptyMsg" class="hint"></p>
+      <h2 id="doneHeader">Done · <span id="doneCount">0</span></h2>
+      <ul id="doneList" class="list done"></ul>
+    </main>
+  </section>
+
+  <!-- Popups -->
+  <dialog id="listMenuDialog">
+    <form method="dialog">
+      <h3 id="listMenuTitle"></h3>
+      <button value="rename">Rename</button>
+      <button value="remove" class="danger">Remove</button>
+    </form>
+  </dialog>
+
+  <dialog id="nameDialog">
+    <form method="dialog">
+      <h3 id="nameDialogTitle"></h3>
+      <label>Name <input id="listNameInput" required pattern=".*\S.*" enterkeyhint="done"></label>
+      <div class="actions">
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="ok" class="primary" id="nameDialogOk"></button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="editDialog">
     <form method="dialog">
@@ -55,10 +95,10 @@
   <dialog id="importDialog">
     <form method="dialog">
       <h3>Import <span id="importCount"></span> items</h3>
-      <p class="note">Your list already has items. Items with the same name keep their place and get the new quantity.</p>
+      <p class="note">This list already has items. Items with the same name keep their place and get the new quantity.</p>
       <div class="actions column">
-        <button value="replace" class="primary">Replace my list</button>
-        <button value="add">Add to my list</button>
+        <button value="replace" class="primary">Replace this list</button>
+        <button value="add">Add to this list</button>
         <button value="cancel">Cancel</button>
       </div>
     </form>
