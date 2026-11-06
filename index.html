@@ -45,12 +45,25 @@
 
   <dialog id="menuDialog">
     <form method="dialog">
-      <button value="untickAll">↺ Untick everything (new trip)</button>
-      <button value="deleteDone">🗑 Delete ticked items</button>
-      <button value="deleteAll" class="danger">🗑 Delete everything</button>
+      <button value="untickAll">↺ Untick</button>
+      <button type="button" id="importBtn">📥 Import CSV</button>
       <button value="cancel">Close</button>
     </form>
   </dialog>
+
+  <dialog id="importDialog">
+    <form method="dialog">
+      <h3>Import <span id="importCount"></span> items</h3>
+      <p class="note">Your list already has items. Items with the same name keep their place and get the new quantity.</p>
+      <div class="actions column">
+        <button value="replace" class="primary">Replace my list</button>
+        <button value="add">Add to my list</button>
+        <button value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <input type="file" id="fileInput" hidden>
 
   <script src="app.js"></script>
 </body>

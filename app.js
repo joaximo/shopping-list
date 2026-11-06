@@ -52,7 +52,7 @@ function render() {
   $('doneCount').textContent = done.length;
   $('doneHeader').hidden = done.length === 0;
   $('emptyMsg').hidden = todo.length > 0;
-  $('emptyMsg').textContent = items.length ? 'Nothing left to buy 🎉' : 'Add something to buy above.';
+  $('emptyMsg').textContent = items.length ? 'Nothing left to buy' : 'Add something to buy above.';
 }
 
 function flash(id) {
@@ -146,23 +146,105 @@ $('menuBtn').addEventListener('click', () => {
 });
 
 menuDialog.addEventListener('close', () => {
-  switch (menuDialog.returnValue) {
-    case 'untickAll':
-      items.forEach((it) => { it.done = false; });
-      break;
-    case 'deleteDone':
-      if (!confirm('Delete all ticked items?')) return;
-      items = items.filter((it) => !it.done);
-      break;
-    case 'deleteAll':
-      if (!confirm('Delete the whole list?')) return;
-      items = [];
-      break;
-    default:
-      return;
+  if (menuDialog.returnValue === 'untickAll') {
+    items.forEach((it) => { it.done = false; });
+    save();
+    render();
+  }
+});
+
+// ---------- Import CSV ----------
+// Format: one item per row, "Quantity,Item" (quantity may be empty).
+// A header row, ";" or tab separators (Excel), and a single "Item" column also work.
+
+function parseCSV(text) {
+  text = text.replace(/^﻿/, '');
+  const first = text.split(/\r?\n/, 1)[0];
+  const count = (ch) => first.split(ch).length;
+  const sep = [',', ';', '\t'].reduce((a, b) => (count(b) > count(a) ? b : a));
+
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c !== '"') field += c;
+      else if (text[i + 1] === '"') { field += '"'; i++; }
+      else quoted = false;
+    } else if (c === '"') {
+      quoted = true;
+    } else if (c === sep) {
+      row.push(field); field = '';
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else {
+      field += c;
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function csvToItems(text) {
+  const rows = parseCSV(text)
+    .map((r) => r.map((c) => c.trim()))
+    .filter((r) => r.some(Boolean));
+  const isHeader = (r) => /^(qty|quantity|quantitat|cantidad)$/i.test(r[0]) || /^(item|name|nom|producte|producto)$/i.test(r[1] || '');
+  if (rows.length && isHeader(rows[0])) rows.shift();
+
+  const out = [];
+  for (const r of rows) {
+    const [qty, name] = r.length >= 2 ? [r[0], r[1]] : ['', r[0]];
+    if (!name || out.some((it) => it.name.toLowerCase() === name.toLowerCase())) continue;
+    out.push({ id: uid(), name, qty, done: false });
+  }
+  return out;
+}
+
+function applyImport(newItems, mode) {
+  if (mode === 'replace') {
+    items = newItems;
+  } else {
+    for (const n of newItems) {
+      const existing = items.find((it) => it.name.toLowerCase() === n.name.toLowerCase());
+      if (!existing) items.push(n);
+      else if (n.qty) existing.qty = n.qty;
+    }
   }
   save();
   render();
+  window.scrollTo(0, 0);
+}
+
+const fileInput = $('fileInput');
+const importDialog = $('importDialog');
+let pendingImport = null;
+
+$('importBtn').addEventListener('click', () => {
+  menuDialog.close();
+  fileInput.click();
+});
+
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files[0];
+  fileInput.value = '';
+  if (!file) return;
+  const newItems = csvToItems(await file.text());
+  if (!newItems.length) { alert('No items found in that file.'); return; }
+
+  if (!items.length) { applyImport(newItems, 'replace'); return; }
+  pendingImport = newItems;
+  $('importCount').textContent = newItems.length;
+  importDialog.returnValue = '';
+  importDialog.showModal();
+});
+
+importDialog.addEventListener('close', () => {
+  if (pendingImport && ['replace', 'add'].includes(importDialog.returnValue)) {
+    applyImport(pendingImport, importDialog.returnValue);
+  }
+  pendingImport = null;
 });
 
 // ---------- Drag to reorder (by the ⠿ handle) ----------

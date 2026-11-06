@@ -159,6 +159,8 @@ dialog button {
 dialog .primary { background: var(--accent); color: #fff; }
 dialog .danger { background: none; color: var(--danger); }
 .actions { display: flex; gap: 8px; margin-top: 18px; }
+.actions.column { flex-direction: column; }
+dialog .note { margin: 0; font-size: .95rem; color: var(--muted); }
 .spacer { flex: 1; }
 #menuDialog button { display: block; width: 100%; margin-bottom: 8px; text-align: left; }
 #menuDialog button:last-child { margin-bottom: 0; text-align: center; }
