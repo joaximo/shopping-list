@@ -1,7 +1,7 @@
 {
   "name": "Shopping Lists",
   "short_name": "Shopping",
-  "start_url": "./?app",
+  "start_url": "./?home",
   "scope": "./",
   "display": "standalone",
   "background_color": "#fafafa",
