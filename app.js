@@ -63,7 +63,7 @@ function route() {
   if (list) {
     $('listTitle').textContent = list.name;
     document.title = list.name;
-    render();
+    render({ animate: false });
   } else {
     document.title = 'Shopping Lists';
     renderHome();
@@ -185,19 +185,39 @@ nameDialog.addEventListener('close', () => {
 const todoList = $('todoList');
 const doneList = $('doneList');
 
+const EASE = 'cubic-bezier(.2, .8, .2, 1)';
+const rowEl = (id) => $('listMain').querySelector(`li[data-id="${CSS.escape(id)}"]`);
+
 function row(item) {
   const li = document.createElement('li');
   li.dataset.id = item.id;
+  li.classList.toggle('is-done', !!item.done);
   li.innerHTML = `
-    <span class="handle" aria-label="Drag to reorder">⠿</span>
-    <button class="toggle"><span class="box"></span><span class="name"></span><span class="qty"></span></button>
+    <span class="handle" aria-hidden="true">⠿</span>
+    <button class="toggle"><span class="name"><span class="txt"></span></span><span class="qty"></span></button>
     <button class="edit" aria-label="Edit">✎</button>`;
-  li.querySelector('.name').textContent = item.name;
+  li.querySelector('.toggle').setAttribute('aria-pressed', !!item.done);
+  li.querySelector('.txt').textContent = item.name;
   li.querySelector('.qty').textContent = item.qty;
   return li;
 }
 
-function render() {
+// Everything that can shift position when the list changes.
+const flipTargets = () => document.querySelectorAll('#listMain li[data-id], #emptyMsg, #doneHeader');
+const flipKey = (el) => el.dataset.id || el.id;
+
+// Re-draws the list. Unless animate is false, every row slides from where it
+// was to where it is now (FLIP), and `enter` (an item id) animates in.
+function render({ animate = true, enter = null } = {}) {
+  clearTimeout(renderTimer);
+  renderTimer = 0;
+  cancelPress();
+  const flip = animate && !$('listView').hidden && !drag;
+  const before = new Map();
+  if (flip) {
+    for (const el of flipTargets()) if (!el.hidden) before.set(flipKey(el), el.getBoundingClientRect().top);
+  }
+
   const todo = items.filter((it) => !it.done);
   const done = items.filter((it) => it.done);
   todoList.replaceChildren(...todo.map(row));
@@ -207,7 +227,108 @@ function render() {
   $('doneHeader').hidden = done.length === 0;
   $('emptyMsg').hidden = todo.length > 0;
   $('emptyMsg').textContent = items.length ? 'Nothing left to buy' : 'Add something to buy above.';
+
+  if (!flip) return;
+  for (const el of flipTargets()) {
+    if (el.hidden) continue;
+    const key = flipKey(el);
+    if (key === enter) {
+      el.animate(
+        [{ opacity: 0, transform: 'translateY(-14px) scale(.96)' }, { opacity: 1, transform: 'none' }],
+        { duration: 380, easing: EASE }
+      );
+    } else if (before.has(key)) {
+      const dy = before.get(key) - el.getBoundingClientRect().top;
+      if (Math.abs(dy) < 1) continue;
+      // Rows travelling far (between sections) glide over the others.
+      const far = Math.abs(dy) > el.offsetHeight * 1.5;
+      if (far) el.style.zIndex = 1;
+      el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: far ? 450 : 320, easing: EASE })
+        .finished.then(() => { el.style.zIndex = ''; }, () => {});
+    } else {
+      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: 'ease-out' });
+    }
+  }
 }
+
+// Ticking first strikes the item through in place; a moment later the list
+// re-sorts. Ticking several items quickly moves them all together.
+let renderTimer = 0;
+function scheduleRender(delay = 450) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(function fire() {
+    if (press || drag) { renderTimer = setTimeout(fire, 150); return; } // finger still down
+    render();
+  }, delay);
+}
+function flushRender() {
+  if (renderTimer) render();
+}
+
+function toggle(item) {
+  item.done = !item.done;
+  save();
+  const li = rowEl(item.id);
+  if (li) {
+    li.classList.toggle('is-done', item.done);
+    li.querySelector('.toggle').setAttribute('aria-pressed', item.done);
+  }
+  scheduleRender();
+}
+
+// Deleting slides the row away and offers Undo instead of asking first.
+async function removeItem(item) {
+  flushRender();
+  const list = current;
+  const index = items.indexOf(item);
+  if (index < 0) return;
+  const li = rowEl(item.id);
+  if (li) {
+    li.style.overflow = 'hidden';
+    await li.animate(
+      [
+        { height: `${li.offsetHeight}px`, opacity: 1, transform: 'none' },
+        { height: '0px', opacity: 0, transform: 'translateX(-48px)', borderBottomWidth: '0px' },
+      ],
+      { duration: 280, easing: 'cubic-bezier(.4, 0, .6, 1)', fill: 'forwards' }
+    ).finished.catch(() => {});
+  }
+  items = items.filter((it) => it !== item);
+  save();
+  render();
+  showToast(`Deleted “${item.name}”`, 'Undo', () => {
+    list.items.splice(Math.min(index, list.items.length), 0, item);
+    if (list === current) items = list.items;
+    localStorage.setItem(KEY, JSON.stringify(data));
+    if (list === current) { render({ enter: item.id }); flash(item.id); }
+    else if (!current) renderHome();
+  });
+}
+
+// ---------- Toast (snackbar with an action) ----------
+
+const toast = $('toast');
+let toastTimer = 0;
+let toastAction = null;
+
+function showToast(text, actionLabel, action) {
+  $('toastText').textContent = text;
+  $('toastBtn').textContent = actionLabel;
+  toastAction = action;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 5000);
+}
+function hideToast() {
+  clearTimeout(toastTimer);
+  toast.classList.remove('show');
+  toastAction = null;
+}
+$('toastBtn').addEventListener('click', () => {
+  const action = toastAction;
+  hideToast();
+  action?.();
+});
 
 // Adding
 $('addForm').addEventListener('submit', (e) => {
@@ -218,7 +339,9 @@ $('addForm').addEventListener('submit', (e) => {
 
   // Re-adding something already on the list re-activates it in its old spot
   // instead of creating a duplicate.
+  flushRender();
   let item = items.find((it) => sameName(it.name, name));
+  const isNew = !item;
   if (item) {
     item.done = false;
     if (qty) item.qty = qty;
@@ -227,7 +350,7 @@ $('addForm').addEventListener('submit', (e) => {
     items.push(item);
   }
   save();
-  render();
+  render({ enter: isNew ? item.id : null });
   flash(item.id);
 
   $('nameInput').value = '';
@@ -235,19 +358,15 @@ $('addForm').addEventListener('submit', (e) => {
   $('nameInput').focus();
 });
 
-// Tick / edit
+// Tap a row to tick / untick it; ✎ edits.
 $('listMain').addEventListener('click', (e) => {
+  if (Date.now() < suppressClickUntil) return; // the tail end of a drag
   const li = e.target.closest('li');
   const item = li && byId(li.dataset.id);
   if (!item) return;
 
-  if (e.target.closest('.toggle')) {
-    item.done = !item.done;
-    save();
-    render();
-  } else if (e.target.closest('.edit')) {
-    openEdit(item);
-  }
+  if (e.target.closest('.edit')) openEdit(item);
+  else toggle(item);
 });
 
 const editDialog = $('editDialog');
@@ -272,12 +391,9 @@ editDialog.addEventListener('close', () => {
 });
 
 $('deleteBtn').addEventListener('click', () => {
-  if (editing && confirm(`Delete "${editing.name}"?`)) {
-    items = items.filter((it) => it !== editing);
-    save();
-    render();
-    editDialog.close();
-  }
+  const item = editing;
+  editDialog.close();
+  if (item) removeItem(item);
 });
 
 // List menu (⋮ in the list screen)
@@ -412,51 +528,154 @@ $('exportBtn').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 });
 
-// ---------- Drag to reorder (by the ⠿ handle) ----------
+// ---------- Drag to reorder ----------
+// Hold a row (or grab the ⠿ handle straight away) and drag it. The row lifts
+// and follows the finger while the others slide aside to make room.
 
-let drag = null;
+const LONG_PRESS_MS = 350;
+let press = null;            // a finger resting on a row, waiting to become a drag
+let drag = null;             // the drag in progress
+let suppressClickUntil = 0;  // the click that follows a drag must not tick the item
 
-document.addEventListener('pointerdown', (e) => {
-  const handle = e.target.closest('.handle');
-  if (!handle) return;
-  e.preventDefault();
-  const li = handle.closest('li');
-  handle.setPointerCapture(e.pointerId);
-  drag = { li, list: li.parentElement, pointerId: e.pointerId };
-  li.classList.add('dragging');
-  navigator.vibrate?.(15);
+function cancelPress() {
+  if (!press) return;
+  clearTimeout(press.timer);
+  press.li.classList.remove('pressing');
+  press = null;
+}
+
+$('listMain').addEventListener('pointerdown', (e) => {
+  if (drag || press || e.button !== 0) return;
+  const li = e.target.closest('li[data-id]');
+  if (!li || e.target.closest('.edit')) return;
+
+  if (e.target.closest('.handle')) {
+    e.preventDefault();
+    startDrag(li, e.clientY, e.pointerId);
+    return;
+  }
+  press = {
+    li, pointerId: e.pointerId, x: e.clientX, y: e.clientY,
+    timer: setTimeout(() => {
+      const p = press;
+      press = null;
+      p.li.classList.remove('pressing');
+      startDrag(p.li, p.y, p.pointerId);
+    }, LONG_PRESS_MS),
+  };
+  li.classList.add('pressing');
 });
 
-document.addEventListener('pointermove', (e) => {
-  if (!drag || e.pointerId !== drag.pointerId) return;
-  const others = [...drag.list.children].filter((el) => el !== drag.li);
-  const before = others.find((el) => {
-    const r = el.getBoundingClientRect();
-    return e.clientY < r.top + r.height / 2;
-  });
-  if (drag.li.nextElementSibling !== (before || null)) {
-    drag.list.insertBefore(drag.li, before || null);
+function startDrag(li, y, pointerId) {
+  if (renderTimer) { // a re-sort is pending: do it first, then grab the fresh row
+    const id = li.dataset.id;
+    render({ animate: false });
+    li = rowEl(id);
+    if (!li) return;
   }
-  // Scroll when dragging near the screen edges.
-  const topEdge = document.querySelector('#listView .top').getBoundingClientRect().bottom;
-  if (e.clientY < topEdge + 40) window.scrollBy(0, -12);
-  else if (e.clientY > window.innerHeight - 40) window.scrollBy(0, 12);
+  const list = li.parentElement;
+  const rows = [...list.children];
+  const sy = window.scrollY;
+  const geo = rows.map((el) => {
+    const r = el.getBoundingClientRect();
+    return { el, top: r.top + sy, h: r.height };
+  });
+  const last = geo[geo.length - 1];
+  drag = {
+    li, list, geo, pointerId,
+    from: rows.indexOf(li), to: rows.indexOf(li),
+    startY: y, y, startScroll: sy,
+    minTop: geo[0].top, maxBottom: last.top + last.h,
+  };
+  try { li.setPointerCapture(pointerId); } catch { /* pointer already gone */ }
+  list.classList.add('sorting');
+  li.classList.add('dragging');
+  navigator.vibrate?.(15);
+  layoutDrag();
+  drag.raf = requestAnimationFrame(dragFrame);
+}
+
+function layoutDrag() {
+  const d = drag;
+  const me = d.geo[d.from];
+  let dy = d.y - d.startY + (window.scrollY - d.startScroll);
+  dy = Math.max(d.minTop - me.top, Math.min(d.maxBottom - (me.top + me.h), dy));
+  d.li.style.translate = `0 ${dy}px`;
+
+  // The row lands after every other row whose middle is above its middle.
+  const center = me.top + dy + me.h / 2;
+  d.to = d.geo.filter((o, i) => i !== d.from && o.top + o.h / 2 < center).length;
+  d.geo.forEach((o, i) => {
+    if (i === d.from) return;
+    let shift = 0;
+    if (i < d.from && i >= d.to) shift = me.h;
+    else if (i > d.from && i <= d.to) shift = -me.h;
+    o.el.style.translate = shift ? `0 ${shift}px` : '';
+  });
+}
+
+// Every frame: scroll when held near the top/bottom edge, then re-layout.
+function dragFrame() {
+  if (!drag) return;
+  const topEdge = document.querySelector('#listView .top').getBoundingClientRect().bottom + 60;
+  const bottomEdge = window.innerHeight - 60;
+  if (drag.y < topEdge) window.scrollBy(0, -Math.ceil((topEdge - drag.y) / 5));
+  else if (drag.y > bottomEdge) window.scrollBy(0, Math.ceil((drag.y - bottomEdge) / 5));
+  layoutDrag();
+  drag.raf = requestAnimationFrame(dragFrame);
+}
+
+document.addEventListener('pointermove', (e) => {
+  if (press && e.pointerId === press.pointerId) {
+    // Moved before the long-press fired: it's a scroll or swipe, not a drag.
+    if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress();
+    return;
+  }
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  drag.y = e.clientY;
+  layoutDrag();
+});
+
+// Once a drag has started, stop the page from scrolling under the finger.
+document.addEventListener('touchmove', (e) => { if (drag) e.preventDefault(); }, { passive: false });
+
+// No long-press menu / text selection on rows.
+$('listMain').addEventListener('contextmenu', (e) => {
+  if (e.target.closest('li[data-id]')) e.preventDefault();
 });
 
 function endDrag(e) {
+  if (press && e.pointerId === press.pointerId) cancelPress();
   if (!drag || e.pointerId !== drag.pointerId) return;
-  drag.li.classList.remove('dragging');
-
-  // Put the new order of this section back into the same array slots this
-  // section occupied, so items in the other section keep their positions.
-  const sectionDone = drag.list === doneList;
-  const newOrder = [...drag.list.children].map((li) => byId(li.dataset.id));
-  let k = 0;
-  items = items.map((it) => (!!it.done === sectionDone ? newOrder[k++] : it));
-
+  const d = drag;
   drag = null;
-  save();
-  render();
+  cancelAnimationFrame(d.raf);
+  suppressClickUntil = Date.now() + 400;
+
+  // Glide the row into its new slot, then commit the order.
+  let finalY = 0;
+  if (d.to > d.from) for (let i = d.from + 1; i <= d.to; i++) finalY += d.geo[i].h;
+  else for (let i = d.to; i < d.from; i++) finalY -= d.geo[i].h;
+  d.li.classList.remove('dragging');
+  d.li.classList.add('settling');
+  d.li.style.translate = `0 ${finalY}px`;
+
+  setTimeout(() => {
+    d.list.classList.remove('sorting');
+    if (d.to !== d.from) {
+      // Put the new order of this section back into the same array slots this
+      // section occupied, so items in the other section keep their positions.
+      const ids = d.geo.map((o) => o.el.dataset.id);
+      const [moved] = ids.splice(d.from, 1);
+      ids.splice(d.to, 0, moved);
+      const newOrder = ids.map(byId);
+      const sectionDone = d.list === doneList;
+      let k = 0;
+      items = items.map((it) => (!!it.done === sectionDone ? newOrder[k++] : it));
+      save();
+    }
+    render({ animate: false });
+  }, 220);
 }
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', endDrag);

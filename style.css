@@ -107,52 +107,52 @@ main { padding-bottom: calc(48px + env(safe-area-inset-bottom)); }
 /* List rows */
 .list { list-style: none; margin: 0; padding: 0; }
 .list li {
+  position: relative;
   display: flex;
   align-items: stretch;
   background: var(--card);
   border-bottom: 1px solid var(--line);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  transition: opacity .3s ease, background-color .2s ease, scale .35s ease,
+              box-shadow .2s ease, border-radius .2s ease;
 }
+.lists li { user-select: auto; -webkit-user-select: auto; }
 .handle {
   display: flex; align-items: center;
-  padding: 0 6px 0 14px;
+  padding: 0 4px 0 14px;
   color: var(--muted);
   font-size: 1.2rem;
+  opacity: .6;
   touch-action: none;       /* lets us drag instead of scrolling */
-  user-select: none;
   cursor: grab;
 }
 .toggle {
   flex: 1;
   display: flex; align-items: center; gap: 12px;
   min-height: 56px;
-  padding: 12px 4px;
+  padding: 12px 4px 12px 8px;
   border: 0; background: none; color: inherit;
   font: inherit; text-align: left;
-}
-.box {
-  position: relative; flex: none;
-  width: 24px; height: 24px;
-  border: 2px solid var(--muted);
-  border-radius: 6px;
+  cursor: pointer;
 }
 .name { flex: 1; overflow-wrap: anywhere; }
+/* The strike-through is drawn as a line that sweeps across the text. */
+.name .txt {
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 0 2px;
+  transition: background-size .3s cubic-bezier(.2, .8, .2, 1);
+}
 .qty { color: var(--muted); white-space: nowrap; }
 .edit {
   border: 0; background: none; color: var(--muted);
   font-size: 1.15rem; padding: 0 16px;
 }
 
-/* Ticked-off section */
-.done li { opacity: .55; }
-.done .name { text-decoration: line-through; }
-.done .box { background: var(--accent); border-color: var(--accent); }
-.done .box::after {
-  content: "";
-  position: absolute; left: 6px; top: 1px;
-  width: 6px; height: 13px;
-  border: solid #fff; border-width: 0 3px 3px 0;
-  transform: rotate(45deg);
-}
+/* Ticked-off items */
+.list li.is-done { opacity: .5; }
+.list li.is-done .name .txt { background-size: 100% 2px; }
 
 h2 {
   margin: 28px 16px 8px;
@@ -161,14 +161,57 @@ h2 {
 }
 .hint { margin: 0; padding: 28px 16px; text-align: center; color: var(--muted); }
 
-li.dragging {
-  position: relative; z-index: 1;
-  opacity: 1 !important;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+/* Holding a row: it sinks slightly, then lifts when the drag starts. */
+.list li.pressing {
+  background: color-mix(in srgb, var(--fg) 6%, var(--card));
+  scale: .98;
 }
+.list.sorting li { transition: translate .25s cubic-bezier(.2, .8, .2, 1), opacity .3s ease; }
+.list li.dragging,
+.list li.settling {
+  z-index: 1;
+  opacity: 1;
+  border-radius: 12px;
+  border-bottom-color: transparent;
+}
+.list li.dragging {
+  scale: 1.03;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .22), 0 2px 6px rgba(0, 0, 0, .12);
+  transition: scale .2s cubic-bezier(.2, .8, .2, 1), box-shadow .2s ease, border-radius .2s ease;
+  cursor: grabbing;
+}
+.list li.settling {
+  transition: translate .2s cubic-bezier(.2, .8, .2, 1), scale .2s ease, box-shadow .2s ease, border-radius .2s ease;
+}
+
 li.flash { animation: flash 1.2s ease-out; }
 @keyframes flash {
   from { background: color-mix(in srgb, var(--accent) 35%, var(--card)); }
+}
+
+/* Snackbar (Undo) */
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 10;
+  display: flex; align-items: center; gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 6px 6px 18px;
+  border-radius: 14px;
+  background: #323232; color: #fff;
+  font-size: .95rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+  translate: -50% 150%;
+  opacity: 0;
+  pointer-events: none;
+  transition: translate .35s cubic-bezier(.2, .8, .2, 1), opacity .25s ease;
+}
+.toast.show { translate: -50% 0; opacity: 1; pointer-events: auto; }
+#toastText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#toastBtn {
+  flex: none;
+  border: 0; border-radius: 10px; background: none;
+  color: #81c784; font: inherit; font-weight: 700;
+  padding: 10px 12px;
 }
 
 /* Dialogs */
@@ -179,6 +222,10 @@ dialog {
   background: var(--card); color: var(--fg);
 }
 dialog::backdrop { background: rgba(0, 0, 0, .45); }
+dialog[open] { animation: dialog-in .22s cubic-bezier(.2, .8, .2, 1); }
+dialog[open]::backdrop { animation: fade-in .22s ease; }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(12px) scale(.96); } }
+@keyframes fade-in { from { opacity: 0; } }
 dialog h3 { margin: 0 0 16px; }
 dialog label { display: block; margin-bottom: 14px; font-size: .9rem; color: var(--muted); }
 dialog input {
