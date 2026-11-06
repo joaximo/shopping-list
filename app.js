@@ -240,6 +240,27 @@ fileInput.addEventListener('change', async () => {
   importDialog.showModal();
 });
 
+// ---------- Export CSV ----------
+// Same "Quantity,Item" format the importer reads, in list order.
+
+function toCSV() {
+  const cell = (v) => (/[",;\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const lines = [['Quantity', 'Item'], ...items.map((it) => [it.qty, it.name])];
+  return '﻿' + lines.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
+}
+
+$('exportBtn').addEventListener('click', () => {
+  menuDialog.close();
+  const blob = new Blob([toCSV()], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `shopping-list-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+});
+
 importDialog.addEventListener('close', () => {
   if (pendingImport && ['replace', 'add'].includes(importDialog.returnValue)) {
     applyImport(pendingImport, importDialog.returnValue);
