@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2e7d32">
+  <title>Shopping List</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="top">
+    <header>
+      <h1>Shopping List</h1>
+      <button id="menuBtn" aria-label="Menu">⋮</button>
+    </header>
+    <form id="addForm" autocomplete="off">
+      <input id="nameInput" placeholder="Item" enterkeyhint="done" aria-label="Item">
+      <input id="qtyInput" placeholder="Qty" enterkeyhint="done" aria-label="Quantity">
+      <button type="submit" aria-label="Add">+</button>
+    </form>
+  </div>
+
+  <main>
+    <ul id="todoList" class="list"></ul>
+    <p id="emptyMsg" class="hint"></p>
+    <h2 id="doneHeader">Done · <span id="doneCount">0</span></h2>
+    <ul id="doneList" class="list done"></ul>
+  </main>
+
+  <dialog id="editDialog">
+    <form method="dialog">
+      <h3>Edit item</h3>
+      <label>Item <input id="editName" required></label>
+      <label>Quantity <input id="editQty"></label>
+      <div class="actions">
+        <button type="button" id="deleteBtn" class="danger">Delete</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="save" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="menuDialog">
+    <form method="dialog">
+      <button value="untickAll">↺ Untick everything (new trip)</button>
+      <button value="deleteDone">🗑 Delete ticked items</button>
+      <button value="deleteAll" class="danger">🗑 Delete everything</button>
+      <button value="cancel">Close</button>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
