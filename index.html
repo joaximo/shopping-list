@@ -721,7 +721,7 @@ $('addForm').addEventListener('submit', (e) => {
 
   $('nameInput').value = '';
   $('qtyInput').value = '';
-  $('nameInput').focus();
+  document.activeElement?.blur();
 });
 
 // Tap a row to tick / untick it; ✎ edits.
